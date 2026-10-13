@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>사용자 취향 기반 시간표 추천 설계 검토</title>
+  <style>
+    :root{color-scheme:light;--ink:#192431;--muted:#566270;--line:#dce2e8;--accent:#244b86;--soft:#f2f6fb;--paper:#fff;--bg:#edf0f3}
+    *{box-sizing:border-box}
+    html{font-size:16px}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif;line-height:1.75;word-break:keep-all;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+    main{max-width:1056px;margin:40px auto 64px;padding:48px 56px 52px;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+    header{padding-bottom:27px;border-bottom:2px solid var(--ink)}
+    h1,h2,h3,p,ul,dl,dd{margin:0}
+    h1{font-size:30px;line-height:1.45;letter-spacing:-1.15px;font-weight:750}
+    section{margin-top:34px}
+    h2{display:flex;align-items:baseline;gap:12px;margin-bottom:17px;font-size:21px;line-height:1.5;letter-spacing:-.55px}
+    .index{color:var(--accent);font-size:13px;font-weight:700;letter-spacing:.05em;font-variant-numeric:tabular-nums}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px;line-height:1.7}
+    th,td{padding:14px 16px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+    thead th{background:var(--soft);font-size:13px;color:#3e5066;font-weight:700;border-top:1px solid var(--line)}
+    tbody th{font-size:14px;font-weight:700}
+    .comparison col:first-child{width:16%}
+    .comparison col:not(:first-child){width:42%}
+    .issues{border-top:1px solid var(--line)}
+    .issue{display:grid;grid-template-columns:150px 1fr;gap:24px;padding:18px 0;border-bottom:1px solid var(--line)}
+    dt{font-size:16px;font-weight:700;line-height:1.7}
+    dd p{font-size:15px}
+    .gap{color:var(--muted);margin-bottom:4px}
+    .recommendation{color:var(--ink)}
+    .recommendation b{font-size:12px;color:var(--accent);margin-right:8px;font-weight:700}
+    .roles col:first-child{width:21%}.roles col:nth-child(2){width:39%}.roles col:nth-child(3){width:40%}
+    .roles td,.roles th{padding-top:15px;padding-bottom:15px}
+    .agreement{margin-top:15px;padding-left:18px;font-size:14px;color:var(--muted)}
+    .agreement li+li{margin-top:5px}
+    .review-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+    .review-block{border-top:2px solid #b9c7d8;padding-top:14px}
+    h3{font-size:16px;margin-bottom:9px}
+    .review-block ul{padding-left:19px;font-size:14px;line-height:1.85}
+    .review-block li+li{margin-top:9px}
+    .review-block li::marker{color:#8493a5}
+    strong{font-weight:700}
+    @media(max-width:760px){
+      body{background:var(--paper)}
+      main{margin:0;padding:30px 22px 40px;border:0;border-radius:0}
+      h1{font-size:25px;letter-spacing:-.85px}
+      header{padding-bottom:22px}
+      section{margin-top:29px}
+      h2{font-size:19px;margin-bottom:14px}
+      th,td{padding:12px 10px;font-size:14px}
+      .comparison col:first-child{width:18%}.comparison col:not(:first-child){width:41%}
+      .issue{grid-template-columns:1fr;gap:5px;padding:16px 0}
+      dd p{font-size:14px}
+      .review-grid{grid-template-columns:1fr;gap:24px}
+      .roles col:first-child{width:23%}.roles col:nth-child(2){width:38%}.roles col:nth-child(3){width:39%}
+      .roles th,.roles td{padding:12px 8px;font-size:13px}
+      .agreement{font-size:13px}
+    }
+    @media print{
+      @page{size:A4;margin:16mm}
+      body{background:#fff;font-size:10pt}
+      main{max-width:none;margin:0;padding:0;border:0}
+      header{padding-bottom:15px}
+      h1{font-size:22pt}
+      h2{font-size:15pt;break-after:avoid;margin-bottom:10px}
+      h3,dt{font-size:11pt}
+      section{margin-top:20px}
+      table,th,td,dd p{font-size:10pt}
+      th,td,.roles td,.roles th{padding:9px 10px}
+      .issue{padding:12px 0;grid-template-columns:120px 1fr;gap:18px;break-inside:avoid}
+      .agreement,.review-block ul{font-size:9.5pt}
+      .review-grid{gap:22px}
+      tr,.review-block{break-inside:avoid}
+      thead{display:table-header-group}
+      *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>사용자 취향 기반 시간표 추천 설계 검토</h1>
+    </header>
+
+    <section aria-labelledby="scope">
+      <h2 id="scope"><span class="index" aria-hidden="true">01</span>구현 순서 제안</h2>
+      <table class="comparison" aria-label="시간표 추천 프로그램의 단계별 구현 범위와 완료 기준">
+        <colgroup><col><col><col></colgroup>
+        <thead><tr><th scope="col">단계</th><th scope="col">구현 범위</th><th scope="col">완료 기준</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">기본 생성</th><td>필수 과목·시간 충돌 검사</td><td>필수 조건을 만족하는 시간표와 주간 화면</td></tr>
+          <tr><th scope="row">선호 추천</th><td>가중치 반영·Top-K·결과 비교</td><td>서로 다른 후보, 점수와 일치하는 추천 이유</td></tr>
+          <tr><th scope="row">조건 확장</th><td>이동거리·수강신청 실패 시 재추천</td><td>이동 비용 반영, 성공 분반 유지·실패 분반 제외</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="design">
+      <h2 id="design"><span class="index" aria-hidden="true">02</span>핵심 쟁점</h2>
+      <dl class="issues">
+        <div class="issue">
+          <dt>실제 강의 데이터</dt>
+          <dd><p class="gap">숭실대 강의 데이터 활용 예정. 수집 경로·대상 학기·갱신 기준 미정.</p><p class="recommendation"><b>권고</b>소규모 실제 샘플 확보 후 수집 범위 확정. 시간·강의실 미정 항목의 처리 기준 명시.</p></dd>
+        </div>
+        <div class="issue">
+          <dt>필수·선호 조건</dt>
+          <dd><p class="gap">필수·희망 과목의 구분 불명확. 학점 제한은 역할표에만 명시.</p><p class="recommendation"><b>권고</b>반드시 포함할 과목과 선택 가능한 과목 구분. 학점 조건의 적용 범위 합의. 필수 조건의 임의 완화 금지.</p></dd>
+        </div>
+        <div class="issue">
+          <dt>점수·추천 이유</dt>
+          <dd><p class="gap">가중합 방식은 제시됐으나 공강·연강·이동 비용의 정의와 점수 척도 미정.</p><p class="recommendation"><b>권고</b>항목별 계산식·단위·가중치·점수 내역 공유. 추천 이유는 최적화에 사용한 값으로 생성.</p></dd>
+        </div>
+        <div class="issue">
+          <dt>이동거리·가능성</dt>
+          <dd><p class="gap">연속 수업의 거리 비용은 제시. 거리 산정과 실제 이동 가능성의 판단 기준 미정.</p><p class="recommendation"><b>권고</b>거리 선호와 이동 불가 조건 구분. 이동 가능성을 보장하려면 수업 간격과 이동 시간 비교.</p></dd>
+        </div>
+        <div class="issue">
+          <dt>Top-K 차별성</dt>
+          <dd><p class="gap">여러 후보 제공은 명시. 중복 제거·후보 간 차이·동점 처리 기준 미정.</p><p class="recommendation"><b>권고</b>동일 분반 조합 제외. 후보 간 차이 기준과 K개 미만일 때의 표시 방식 합의.</p></dd>
+        </div>
+        <div class="issue">
+          <dt>재추천 변경 비용</dt>
+          <dd><p class="gap">성공 분반 고정·실패 분반 제외는 명확. ‘변경 최소화’의 지표와 선호 점수 간 우선순위 미정.</p><p class="recommendation"><b>권고</b>변경 분반 수 최소화를 우선 적용하고, 동률이면 선호 점수 비교.</p></dd>
+        </div>
+      </dl>
+    </section>
+
+    <section aria-labelledby="roles">
+      <h2 id="roles"><span class="index" aria-hidden="true">03</span>역할 경계 조정안</h2>
+      <table class="roles" aria-label="시간표 추천 프로그램의 네 가지 역할과 인계 기준">
+        <colgroup><col><col><col></colgroup>
+        <thead><tr><th scope="col">담당</th><th scope="col">책임 범위</th><th scope="col">인계 기준</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">1 · 데이터</th><td>수집·정규화·유효성 검사</td><td>학기·과목·분반 ID, 학점, 복수 수업 시간, 위치 데이터와 예제</td></tr>
+          <tr><th scope="row">2 · 최적화</th><td>CP-SAT 제약·목표함수·단일 계산 엔진</td><td>제외·고정 분반 등 조건을 받아 선택 분반·결과 상태·점수 내역 반환</td></tr>
+          <tr><th scope="row">3 · 결과·대안</th><td>Top-K 요청·중복 기준·대안 시나리오·비교와 설명</td><td>2번 엔진 호출로 재추천. 성공 분반 유지와 결과·설명 일치 검증</td></tr>
+          <tr><th scope="row">4 · UI·통합</th><td>조건 입력·주간 시간표·비교 화면·전체 연결</td><td>정상 결과·해 없음·계산 미확정·입력 오류의 전체 흐름</td></tr>
+        </tbody>
+      </table>
+      <ul class="agreement">
+        <li><strong>2·3번 경계:</strong> 최적화 제약과 점수 계산은 2번이 소유. 3번은 동일 엔진·점수 내역을 재사용.</li>
+        <li><strong>공동 합의:</strong> 데이터 필드·요청/응답·실명 담당자·중간 인계일. 각 담당자가 자체 테스트와 오류 수정 책임.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="checks">
+      <h2 id="checks"><span class="index" aria-hidden="true">04</span>검증 기준</h2>
+      <div class="review-grid">
+        <div class="review-block">
+          <h3>생성·추천 정확성</h3>
+          <ul>
+            <li>작은 고정 데이터에서 정답 시간표와 결과 대조</li>
+            <li>복수 요일 수업 충돌·동일 과목 중복·필수 과목·학점 조건 검사</li>
+            <li>선호 가중치 변경 시 점수와 순위 변화 확인</li>
+            <li>Top-K 중복 제거·추천 이유와 계산 값 일치 확인</li>
+          </ul>
+        </div>
+        <div class="review-block">
+          <h3>대안·실패 처리</h3>
+          <ul>
+            <li>수강신청 성공 분반 유지·실패 분반 제외 확인</li>
+            <li>대체 가능한 결과 중 기존 시간표 변경량 비교</li>
+            <li>최적해·가능한 해·해 없음·미확정 구분. 시간 초과를 해 없음으로 단정하지 않음.</li>
+            <li>데이터 누락과 입력 오류를 정상 결과로 처리하지 않음</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
