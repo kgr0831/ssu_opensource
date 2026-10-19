@@ -21,7 +21,7 @@ async function readJson(req){
   let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>8192)throw new Error('입력이 너무 깁니다.')}
   try{return JSON.parse(body)}catch{throw new Error('입력을 확인해 주세요.')}
 }
-const files={'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8']};
+const files={'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8'],'/planner.js':['planner.js','text/javascript; charset=utf-8'],'/planner-core.mjs':['planner-core.mjs','text/javascript; charset=utf-8']};
 const server=http.createServer(async(req,res)=>{
   if(!allowedHosts.has(req.headers.host))return reply(res,403,{error:'허용되지 않은 접근입니다.'});
   const url=new URL(req.url,localUrl);

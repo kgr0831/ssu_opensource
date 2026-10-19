@@ -1,4 +1,6 @@
+import {setupPlanner} from './planner.js';
 const $=id=>document.getElementById(id),dayNames=['월','화','수','목','금'];
+let planner;
 const preferenceLabels={fewDays:'등교일 줄이기',late:'오전 수업 피하기',friday:'금요일 공강 선호',compact:'수업 사이 빈 시간 줄이기',travel:'건물 이동 줄이기'};
 const state={courses:[],defaults:null,selection:new Map(),preferredCourseIds:[],candidates:[],recommendations:[],active:0,connected:false,waiting:false,busy:false,revision:0,source:'rules',wantRecommendation:false,poll:null,previewTimer:null};
 async function api(route,body){
@@ -23,9 +25,10 @@ function applyRequest(r){
 function renderConditions(r){
   $('condition-summary').replaceChildren(el('span',r.allowedDays.map(d=>dayNames[d]).join('·')+' '+time(r.earliestStart)+'–'+time(r.latestEnd)),el('span','총 '+range(r.credits.total)+'학점'),el('span','전공 '+range(r.credits.major)),el('span','교양 '+range(r.credits.general)));
   const required=r.requiredCourseIds.length,excluded=r.excludedCourseIds.length;
+  if(r.preferredCourseIds?.length)$('condition-summary').append(el('span','관심 과목 '+r.preferredCourseIds.length+'개 우선'));
   $('course-selection-count').textContent=required||excluded?'필수 포함 '+required+'과목 · 제외 '+excluded+'과목':'과목 자동 선택 · 아래 목록에서 포함·제외 지정';
 }
-function basicReason(c){return '전공 '+c.majorCredits+'학점과 교양 '+c.generalCredits+'학점을 자동으로 조합했어요. '+c.metrics.dayList.map(d=>dayNames[d]).join('·')+'요일에 등교하며, 수업 사이 빈 시간은 주간 총 '+c.metrics.gapMinutes+'분이에요.'}
+function basicReason(c){const matched=c.sections.filter(s=>state.preferredCourseIds.includes(s.courseId));return '전공 '+c.majorCredits+'학점과 교양 '+c.generalCredits+'학점을 자동으로 조합했어요. '+c.metrics.dayList.map(d=>dayNames[d]).join('·')+'요일에 등교하며, 수업 사이 빈 시간은 주간 총 '+c.metrics.gapMinutes+'분이에요.'+(matched.length?' 관심 과목 '+matched.map(s=>s.name).join('·')+'을 포함했어요.':'')}
 function render(){
   $('result-count').textContent=state.recommendations.length;
   $('result-source').textContent=state.source==='codex'?(state.recommendations.length?'Codex AI 추천':'AI 조건 해석'):'기본 추천';
@@ -38,7 +41,7 @@ function render(){
     button.addEventListener('click',()=>{state.active=index;render()});$('candidate-tabs').append(button);
   });
   const current=state.recommendations[state.active],c=state.candidates.find(c=>c.id===current?.id);
-  $('timetable-panel').hidden=!c;$('recommendation-note').hidden=!c;$('selected-courses').replaceChildren();if(!c)return;
+  $('timetable-panel').hidden=!c;$('recommendation-note').hidden=!c;$('semester-save').hidden=!c;$('selected-courses').replaceChildren();planner?.selectionChanged(c);if(!c)return;
   $('timetable-title').textContent='추천 '+(state.active+1);
   $('metrics').replaceChildren(el('span','빈 시간 '+c.metrics.gapMinutes+'분'),el('span','건물 변경 '+c.metrics.buildingChanges+'회'));
   $('reason-title').textContent=state.source==='codex'?'AI 추천 이유':'조건에 따른 추천';$('reason').textContent=current.reason;
@@ -142,5 +145,9 @@ for(let i=0;i<=12;i++){const label=el('span',String(9+i).padStart(2,'0'),'time-l
 try{
   const meta=await api('meta');state.courses=meta.courses;state.defaults=meta.defaultRequest;
   $('catalog-count').textContent=meta.catalogInfo.majorCount+' 전공 · '+meta.catalogInfo.generalCount+' 교양 · '+meta.catalogInfo.sectionCount+' 가상 분반';$('data-notice').textContent=meta.catalogInfo.notice;
+  planner=setupPlanner({courses:state.courses,getCandidate:()=>state.candidates.find(c=>c.id===state.recommendations[state.active]?.id),applyCourses:async(preferred,completed=[])=>{
+    if(state.busy)throw new Error('AI 추천이 끝난 뒤 과목을 적용해 주세요.');
+    const r=request();r.preferredCourseIds=preferred;r.requiredCourseIds=r.requiredCourseIds.filter(id=>!completed.includes(id));r.excludedCourseIds=[...new Set([...r.excludedCourseIds,...completed])].filter(id=>!preferred.includes(id));applyRequest(r);await refreshCandidates();
+  }});
   applyRequest(meta.defaultRequest);await Promise.all([refreshCandidates(),refreshStatus()]);
 }catch(error){message(error.message)}
